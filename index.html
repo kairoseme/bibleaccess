@@ -24,12 +24,13 @@
         }
 
         h3 { margin-top: 0; margin-bottom: 10px; color: var(--text-color); font-size: 16px; text-transform: uppercase; letter-spacing: 0.5px;}
+        .testament-title { font-size: 14px; font-weight: bold; color: #ccc; margin: 12px 0 6px 0; text-transform: uppercase; }
 
         .section {
             background-color: #383737;
             padding: 15px;
             border-radius: 8px;
-            margin-bottom: 15px;
+            margin-bottom: 35px; /* Spaced out for mobile breathing room */
             border: 1px solid var(--border-color);
         }
 
@@ -63,17 +64,15 @@
         }
         button:hover { background-color: #b30000; }
 
-        /* Grid layouts for browsing books and chapters */
         .grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(85px, 1fr));
             gap: 8px;
             max-height: 160px;
             overflow-y: auto;
-            margin-top: 10px;
+            margin-bottom: 10px;
             padding-right: 5px;
         }
-        /* Custom scrollbar for dark theme */
         .grid::-webkit-scrollbar { width: 6px; }
         .grid::-webkit-scrollbar-thumb { background-color: var(--border-color); border-radius: 4px; }
 
@@ -101,7 +100,6 @@
             border-radius: 8px;
             border: 1px solid var(--border-color);
         }
-        /* Style YouVersion injected HTML elements if needed */
         .bible-output p { margin-bottom: 12px; }
         .bible-output .v { color: var(--accent-color); font-weight: bold; margin-right: 4px; font-size: 14px; }
         
@@ -117,9 +115,9 @@
 </head>
 <body>
 
-    <!-- Language Selector (Shared across browsing and keyword searching) -->
-    <div style="margin-bottom: 15px;">
-        <label style="font-size:12px; font-weight:bold; display:block; margin-bottom:4px;">SELECT LANGUAGE/VERSION:</label>
+    <!-- Translation Configuration Section -->
+    <div class="section">
+        <h3>1. Translation</h3>
         <select id="versionSelect" onchange="onVersionChange()">
             <option value="111">English (NIV)</option>
             <option value="12">English (KJV)</option>
@@ -131,113 +129,116 @@
         </select>
     </div>
 
-    <!-- Navigation Tabs -->
-    <div class="tabs">
-        <div class="tab active" onclick="switchTab('browsePanel', this)">Browse Books</div>
-        <div class="tab" onclick="switchTab('searchPanel', this)">Keyword Search</div>
+    <!-- Browse Section -->
+    <div class="section">
+        <h3>2. Browse Books & Chapters</h3>
+        <div id="browseContainer">
+            <div class="testament-title">Old Testament</div>
+            <div id="otGrid" class="grid"></div>
+            
+            <div class="testament-title">New Testament</div>
+            <div id="ntGrid" class="grid"></div>
+        </div>
+        <div id="chapterGrid" class="grid" style="display:none;"><!-- Dynamically filled chapters --></div>
+        <button id="backToBooksBtn" onclick="renderBooks()" style="display:none; margin-top:10px; width:100%;">← Back to Books</button>
     </div>
 
-    <!-- PANEL 1: BROWSE BOOKS & CHAPTERS -->
-    <div id="browsePanel" class="panel active">
-        <div class="row">
-            <select id="bookSelect" onchange="populateChapters()">
-                <!-- Populated dynamically based on standard OSIS mapping -->
-            </select>
-            <select id="chapterSelect">
-                <!-- Populated dynamically via JavaScript -->
-            </select>
-            <button onclick="loadBrowsedChapter()">Read</button>
+    <!-- Keyword & Reference Search Section -->
+    <div class="section">
+        <h3>3. Search</h3>
+        <div class="controls">
+            <div class="row">
+                <input type="text" id="keywordInput" placeholder="Enter keywords (e.g., 'faith', 'love')">
+                <button onclick="searchKeywords()">Search Terms</button>
+            </div>
+            <div class="row">
+                <input type="text" id="verseInput" placeholder="Or enter exact reference (e.g., John 3:16)">
+                <button onclick="lookupReference()">Go to Verse</button>
+            </div>
+        </div>
+        <div id="searchResults" style="display:none;">
+            <ul id="resultsList" class="search-results-list"></ul>
         </div>
     </div>
 
-    <!-- PANEL 2: KEYWORD SCRIPTURE SEARCH -->
-    <div id="searchPanel" class="panel">
-        <div class="row">
-            <input type="text" id="keywordInput" placeholder="e.g., love, faith, grazia, miłość">
-            <button onclick="searchKeywords()">Search</button>
-        </div>
-    </div>
-
-    <!-- OUTPUT SCREEN -->
-    <div id="output" class="bible-output">Select an option above to load scripture.</div>
+    <!-- Reader Section -->
+    <h3>Scripture Reader</h3>
+    <div id="output" class="bible-output">Select a translation and choose a book or run a search to begin reading.</div>
 
     <script>
-        // Initialize YouVersion SDK with your developer key
+        // Initialize YouVersion SDK
         const yv = new YouVersionPlatform({
-            appKey: "AlrazwADe3zjnfLx3t96EEDFiRSCxUtMk3lDoUQqwreUHAZw" // <-- Paste your App Key from ://youversion.com
+            appKey: "YOUR_YOUVERSION_APP_KEY" // <-- Paste your App Key from ://youversion.com
         });
 
-        // Simple metadata mapping for rapid frontend navigation
+        // Expanded metadata featuring a 'testament' property
         const bibleBooks = [
-            { id: "GEN", name: "Genesis", chapters: 50 }, { id: "EXO", name: "Exodus", chapters: 40 },
-            { id: "LEV", name: "Leviticus", chapters: 27 }, { id: "NUM", name: "Numbers", chapters: 36 },
-            { id: "DEU", name: "Deuteronomy", chapters: 34 }, { id: "JOSH", name: "Joshua", chapters: 24 },
-            { id: "JUDG", name: "Judges", chapters: 21 }, { id: "RUTH", name: "Ruth", chapters: 4 },
-            { id: "1SAM", name: "1 Samuel", chapters: 31 }, { id: "2SAM", name: "2 Samuel", chapters: 24 },
-            { id: "1KGS", name: "1 Kings", chapters: 22 }, { id: "2KGS", name: "2 Kings", chapters: 25 },
-            { id: "1CHR", name: "1 Chronicles", chapters: 29 }, { id: "2CHR", name: "2 Chronicles", chapters: 36 },
-            { id: "EZRA", name: "Ezra", chapters: 10 }, { id: "NEH", name: "Nehemiah", chapters: 13 },
-            { id: "EST", name: "Esther", chapters: 10 }, { id: "JOB", name: "Job", chapters: 42 },
-            { id: "PSA", name: "Psalms", chapters: 150 }, { id: "PRO", name: "Proverbs", chapters: 31 },
-            { id: "ECC", name: "Ecclesiastes", chapters: 12 }, { id: "SNG", name: "Song of Solomon", chapters: 8 },
-            { id: "ISA", name: "Isaiah", chapters: 66 }, { id: "JER", name: "Jeremiah", chapters: 52 },
-            { id: "LAM", name: "Lamentations", chapters: 5 }, { id: "EZK", name: "Ezekiel", chapters: 48 },
-            { id: "DAN", name: "Daniel", chapters: 12 }, { id: "HOS", name: "Hosea", chapters: 14 },
-            { id: "JOEL", name: "Joel", chapters: 3 }, { id: "AMOS", name: "Amos", chapters: 9 },
-            { id: "OBA", name: "Obadiah", chapters: 1 }, { id: "JON", name: "Jonah", chapters: 4 },
-            { id: "MIC", name: "Micah", chapters: 7 }, { id: "NAM", name: "Nahum", chapters: 3 },
-            { id: "HAB", name: "Habakkuk", chapters: 3 }, { id: "ZEP", name: "Zephaniah", chapters: 3 },
-            { id: "HAG", name: "Haggai", chapters: 2 }, { id: "ZEC", name: "Zechariah", chapters: 14 },
-            { id: "MAL", name: "Malachi", chapters: 4 }, { id: "MAT", name: "Matthew", chapters: 28 },
-            { id: "MRK", name: "Mark", chapters: 16 }, { id: "LUK", name: "Luke", chapters: 24 },
-            { id: "JHN", name: "John", chapters: 21 }, { id: "ACT", name: "Acts", chapters: 28 },
-            { id: "ROM", name: "Romans", chapters: 16 }, { id: "1COR", name: "1 Corinthians", chapters: 16 },
-            { id: "2COR", name: "2 Corinthians", chapters: 13 }, { id: "GAL", name: "Galatians", chapters: 6 },
-            { id: "EPH", name: "Ephesians", chapters: 6 }, { id: "PHP", name: "Philippians", chapters: 4 },
-            { id: "COL", name: "Colossians", chapters: 4 }, { id: "1TH", name: "1 Thessalonians", chapters: 5 },
-            { id: "2TH", name: "2 Thessalonians", chapters: 3 }, { id: "1TIM", name: "1 Timothy", chapters: 6 },
-            { id: "2TIM", name: "2 Timothy", chapters: 4 }, { id: "TIT", name: "Titus", chapters: 3 },
-            { id: "PHM", name: "Philemon", chapters: 1 }, { id: "HEB", name: "Hebrews", chapters: 13 },
-            { id: "JAS", name: "James", chapters: 5 }, { id: "1PET", name: "1 Peter", chapters: 5 },
-            { id: "2PET", name: "2 Peter", chapters: 3 }, { id: "1JHN", name: "1 John", chapters: 5 },
-            { id: "2JHN", name: "2 John", chapters: 1 }, { id: "3JHN", name: "3 John", chapters: 1 },
-            { id: "JUD", name: "Jude", chapters: 1 }, { id: "REV", name: "Revelation", chapters: 22 }
+            { name: "Genesis", id: "GEN", chapters: 50, testament: "OT" },
+            { name: "Exodus", id: "EXO", chapters: 40, testament: "OT" },
+            { name: "Matthew", id: "MAT", chapters: 28, testament: "NT" },
+            { name: "Mark", id: "MRK", chapters: 16, testament: "NT" },
+            { name: "Luke", id: "LUK", chapters: 24, testament: "NT" },
+            { name: "John", id: "JHN", chapters: 21, testament: "NT" },
+            { name: "Romans", id: "ROM", chapters: 16, testament: "NT" },
+            { name: "Revelation", id: "REV", chapters: 22, testament: "NT" }
         ];
 
-        // UI Tabs switching logic
-        function switchTab(panelId, tabEl) {
-            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.getElementById(panelId).classList.add('active');
-            tabEl.classList.add('active');
-        }
+        function renderBooks() {
+            const otGrid = document.getElementById('otGrid');
+            const ntGrid = document.getElementById('ntGrid');
+            const browseContainer = document.getElementById('browseContainer');
+            const chapterGrid = document.getElementById('chapterGrid');
+            const backBtn = document.getElementById('backToBooksBtn');
 
-        // Initialize drop-down selections
-        function initBrowser() {
-            const bookSelect = document.getElementById('bookSelect');
-            bookSelect.innerHTML = bibleBooks.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
-            populateChapters();
-        }
-
-        function populateChapters() {
-            const bookId = document.getElementById('bookSelect').value;
-            const chapterSelect = document.getElementById('chapterSelect');
-            const targetBook = bibleBooks.find(b => b.id === bookId);
+            otGrid.innerHTML = "";
+            ntGrid.innerHTML = "";
             
-            let options = "";
-            for (let i = 1; i <= targetBook.chapters; i++) {
-                options += `<option value="${i}">Chapter ${i}</option>`;
+            // Show book views, hide chapter sub-menu
+            browseContainer.style.display = 'block';
+            chapterGrid.style.display = 'none';
+            backBtn.style.display = 'none';
+
+            bibleBooks.forEach(book => {
+                const item = document.createElement('div');
+                item.className = 'grid-item';
+                item.innerText = book.name;
+                item.onclick = () => selectBook(book);
+                
+                if (book.testament === "OT") {
+                    otGrid.appendChild(item);
+                } else {
+                    ntGrid.appendChild(item);
+                }
+            });
+        }
+
+        function selectBook(book) {
+            // Hide the books layout to show chapter choices cleanly
+            document.getElementById('browseContainer').style.display = 'none';
+            
+            const chapterGrid = document.getElementById('chapterGrid');
+            const backBtn = document.getElementById('backToBooksBtn');
+            
+            chapterGrid.innerHTML = "";
+            chapterGrid.style.display = 'grid';
+            backBtn.style.display = 'block';
+
+            for (let i = 1; i <= book.chapters; i++) {
+                const item = document.createElement('div');
+                item.className = 'grid-item';
+                item.innerText = i;
+                item.onclick = () => loadChapter(book.id, i);
+                chapterGrid.appendChild(item);
             }
-            chapterSelect.innerHTML = options;
         }
 
-        // Action 1: Read structural chapter from Browse parameters
-        async function loadBrowsedChapter() {
+        function onVersionChange() {
+            renderBooks();
+        }
+
+        async function loadChapter(bookId, chapterNum) {
             const versionId = parseInt(document.getElementById('versionSelect').value);
-            const bookId = document.getElementById('bookSelect').value;
-            const chapterNum = document.getElementById('chapterSelect').value;
             const outputDiv = document.getElementById('output');
-            
             outputDiv.innerHTML = "Loading Chapter...";
 
             try {
@@ -245,63 +246,60 @@
                     version_id: versionId,
                     reference: `${bookId}.${chapterNum}`
                 });
+                outputDiv.innerHTML = `<h2>${bookId} ${chapterNum}</h2>` + response.data.content;
+            } catch (error) {
+                outputDiv.innerHTML = "Error loading chapter. Please verify your API setup.";
+            }
+        }
+
+        async function lookupReference() {
+            const versionId = 
+                parseInt(document.getElementById('versionSelect').value);
+            const query = document.getElementById('verseInput').value;
+            const outputDiv = document.getElementById('output');
+            if (!query) return;
+outputDiv.innerHTML = "Searching reference...";
+            try {
+                const response = await yv.bible.getText({
+                    version_id: versionId,
+                    reference: query
+                });
                 outputDiv.innerHTML = response.data.content;
             } catch (error) {
-                outputDiv.innerHTML = "Failed to load chapter. Please verify API access rules.";
+                outputDiv.innerHTML = "Could not find that reference.";
             }
         }
-
-        // Action 2: Call the Core Search endpoint by Keyword
         async function searchKeywords() {
-            const versionId = parseInt(document.getElementById('versionSelect').value);
-            const queryTerm = document.getElementById('keywordInput').value;
-            const outputDiv = document.getElementById('output');
-
-            if (!queryTerm.trim()) return;
-            outputDiv.innerHTML = "Searching text components...";
-
+            const versionId = 
+                parseInt(document.getElementById('versionSelect').value);
+            const term = document.getElementById('keywordInput').value;
+            const resultsDiv = document.getElementById('searchResults');
+            const resultsList = document.getElementById('resultsList');
+            if (!term) return;
+            resultsDiv.style.display = 'block';
+            resultsList.innerHTML = "Searching for terms...";
             try {
-                // Calls the core YouVersion platform search framework
                 const response = await yv.bible.search({
                     version_id: versionId,
-                  query: queryTerm
+                    query: term
                 });
-              const results = response.data.results;
-              if (!results || results.length === 0) {
-                outputDiv.innerHTML = "No scriptures matched your keyword query.";
-                return;
-              }
-                // Render dynamic clickable listing elements
-                let htmlOutput = <h3>Results for "${queryTerm}":</h3>;
-                  results.forEach(item => {
-                    htmlOutput +=  <div class="search-item" 
-                      onclick="loadDirectReference('${item.reference}')"> <div 
-                        class="reference-title">${item.human_reference} </div> <div>${item.text}
-                        </div> </div>;
-                  });
-              outputDiv.innerHTML = htmlOutput;
+                resultsList.innerHTML = "";
+                const matches = response.data.results || [];
+                if (matches.length === 0) {
+                    resultsList.innerHTML = "No verses matched that term.";
+                    return;
+                }
+                matches.slice(0, 10).forEach(match => {
+                    const li = document.createElement('li');
+                    li.innerHTML = <span class="result-ref">${match.reference}
+                    </span><span>${match.text}</span>;
+                    li.onclick = () => {
+                        document.getElementById('verseInput').value = match.reference;
+                        lookupReference();
+                    };
+                    resultsList.appendChild(li);
+                });
             } catch (error) {
-              outputDiv.innerHTML = "Keyword search error. Ensure search query features are allowed on your API key plan.";
-              console.error(error);
-            }
-        }
-      // Bridge action: click search snippet to view full context chapter
-      async function loadDirectReference(refCode) {
-        const versionId = 
-          parseInt(document.getElementById('versionSelect').value);
-        const outputDiv = document.getElementById('output');
-        outputDiv.innerHTML = "Opening text context...";
-        try {
-          const response = await yv.bible.getText({
-            version_id: versionId,
-            reference: refCode
-          });
-          outputDiv.innerHTML = response.data.content;
-        } catch (e) {
-          outputDiv.innerHTML = "Could not pull direct reference.";
-        }
-      }
-      function onVersionChange() {
-        // Optional: Handle clearing screens or localized language adaptation}
-        // Run setup immediately on layout startinitBrowser();
-</html>
+                resultsList.innerHTML = "Keyword search failed.";}}
+        // Run on startup
+        renderBooks();
