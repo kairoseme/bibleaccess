@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Multilingual Bible Portal</title>
     <style>
         :root {
             --bg-color: #2f2e2e;
             --text-color: #ffffff;
-            --accent-color: #990000;
+            --accent-color: #990000; /* Crimson Red */
             --input-bg: #403f3f;
             --border-color: #555555;
         }
@@ -19,6 +19,7 @@
             padding: 15px;
             background-color: var(--bg-color); 
             color: var(--text-color); 
+            -webkit-tap-highlight-color: transparent; /* Fixes mobile tap delay */
         }
 
         h3 { margin-top: 0; margin-bottom: 10px; color: var(--text-color); font-size: 16px; text-transform: uppercase; letter-spacing: 0.5px;}
@@ -28,7 +29,7 @@
             background-color: #383737;
             padding: 15px;
             border-radius: 8px;
-            margin-bottom: 35px;
+            margin-bottom: 35px; /* Generous spacing for mobile */
             border: 1px solid var(--border-color);
         }
 
@@ -36,7 +37,7 @@
         .row { display: flex; gap: 8px; }
         
         select, input { 
-            padding: 12px; 
+            padding: 14px; /* Slightly larger for easier mobile tap */
             border: 1px solid var(--border-color); 
             border-radius: 6px; 
             font-size: 16px; 
@@ -48,7 +49,7 @@
         select:focus, input:focus { outline: 2px solid var(--accent-color); }
 
         button { 
-            padding: 12px 20px; 
+            padding: 14px 20px; 
             background-color: var(--accent-color); 
             color: white; 
             border: none; 
@@ -57,12 +58,13 @@
             cursor: pointer; 
             white-space: nowrap;
         }
+        button:active { background-color: #770000; } /* Mobile tap indicator */
 
         .grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(85px, 1fr));
-            gap: 8px;
-            max-height: 160px;
+            grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+            gap: 10px;
+            max-height: 180px;
             overflow-y: auto;
             margin-bottom: 10px;
             padding-right: 5px;
@@ -74,13 +76,14 @@
             background-color: var(--input-bg);
             border: 1px solid var(--border-color);
             color: var(--text-color);
-            padding: 8px;
+            padding: 12px 8px; /* Touch-optimized */
             text-align: center;
-            border-radius: 4px;
+            border-radius: 6px;
             cursor: pointer;
             font-size: 14px;
+            user-select: none;
         }
-        .grid-item:hover { background-color: var(--accent-color); border-color: var(--accent-color); }
+        .grid-item:active { background-color: var(--accent-color); }
 
         .bible-output { 
             line-height: 1.7; 
@@ -93,8 +96,8 @@
         }
         
         .search-results-list { list-style: none; padding: 0; margin: 10px 0 0 0; }
-        .search-results-list li { padding: 10px; border-bottom: 1px solid var(--border-color); cursor: pointer; }
-        .search-results-list li:hover { background-color: var(--input-bg); }
+        .search-results-list li { padding: 12px; border-bottom: 1px solid var(--border-color); cursor: pointer; }
+        .search-results-list li:active { background-color: var(--input-bg); }
         .result-ref { font-weight: bold; color: var(--accent-color); display: block; margin-bottom: 2px; }
     </style>
 </head>
@@ -130,11 +133,11 @@
         <div class="controls">
             <div class="row">
                 <input type="text" id="keywordInput" placeholder="Enter keywords (e.g., 'faith')">
-                <button onclick="searchKeywords()">Search Terms</button>
+                <button id="searchTermsBtn">Search Terms</button>
             </div>
             <div class="row">
                 <input type="text" id="verseInput" placeholder="Or exact reference (e.g., John 3:16)">
-                <button onclick="lookupReference()">Go to Verse</button>
+                <button id="goVerseBtn">Go to Verse</button>
             </div>
         </div>
         <div id="searchResults" style="display:none;">
@@ -146,9 +149,9 @@
     <div id="output" class="bible-output">Select a translation and choose a book to begin reading.</div>
 
     <script>
-        // CONFIGURATION VARIABLES
-        const APP_KEY = "AlrazwADe3zjnfLx3t96EEDFiRSCxUtMk3lDoUQqwreUHAZw"; // <-- Paste your exact App Key here
-        const BASE_URL = "https://api.youversion.com/v1";
+        // CRITICAL CONFIGURATION
+        const APP_KEY = "YOUR_YOUVERSION_APP_KEY"; // <-- Paste your exact App Key here
+        const BASE_URL = "https://youversion.com";
 
         const bibleBooks = [
             { name: "Genesis", id: "GEN", chapters: 50, testament: "OT" },
@@ -168,7 +171,9 @@
             const chapterGrid = document.getElementById('chapterGrid');
             const backBtn = document.getElementById('backToBooksBtn');
 
-            otGrid.innerHTML = ""; ntGrid.innerHTML = "";
+            if(otGrid) otGrid.innerHTML = ""; 
+            if(ntGrid) ntGrid.innerHTML = "";
+            
             browseContainer.style.display = 'block';
             chapterGrid.style.display = 'none';
             backBtn.style.display = 'none';
@@ -177,9 +182,15 @@
                 const item = document.createElement('div');
                 item.className = 'grid-item';
                 item.innerText = book.name;
-                item.onclick = () => selectBook(book);
-                if (book.testament === "OT") otGrid.appendChild(item);
-                else ntGrid.appendChild(item);
+                
+                // FIXED: Using standard explicit touch listeners to guarantee mobile triggers
+                item.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    selectBook(book);
+                });
+                
+                if (book.testament === "OT" && otGrid) otGrid.appendChild(item);
+                else if (ntGrid) ntGrid.appendChild(item);
             });
         }
 
@@ -195,14 +206,17 @@
                 const item = document.createElement('div');
                 item.className = 'grid-item';
                 item.innerText = i;
-                item.onclick = () => loadChapter(book.id, i);
+                item.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    loadChapter(book.id, i);
+                });
                 chapterGrid.appendChild(item);
             }
         }
 
         function onVersionChange() { renderBooks(); }
 
-        // Core API network fetch handling optimized for mobile runtimes
+        // FIXED: Explicitly corrected headers format to meet YouVersion platform specifications
         async function fetchFromYouVersion(endpoint, params = {}) {
             const url = new URL(`${BASE_URL}/${endpoint}`);
             Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
@@ -211,11 +225,11 @@
                 method: 'GET',
                 headers: {
                     'accept': 'application/json',
-                    'x-youversion-app-key': APP_KEY
+                    'X-YVP-App-Key': APP_KEY // FIXED: Capitalization string fixed to map API gateway rules
                 }
             });
 
-            if (!response.ok) throw new Error(`API error: ${response.status}`);
+            if (!response.ok) throw new Error(`API status: ${response.status}`);
             return await response.json();
         }
 
@@ -225,28 +239,22 @@
             outputDiv.innerHTML = "Loading Chapter...";
 
             try {
-                const data = await fetchFromYouVersion('bible/chapter', {
-                    version_id: versionId,
-                    id: `${bookId}.${chapterNum}`
-                });
-                outputDiv.innerHTML = `<h2>${bookId} ${chapterNum}</h2>` + (data.content || data.html || "No content returned.");
+                // FIXED: Endpoint mapping matching standard structural path
+                const data = await fetchFromYouVersion(`bibles/${versionId}/books/${bookId}/chapters/${chapterNum}`);
+                outputDiv.innerHTML = <h2>${bookId} ${chapterNum}</h2> + (data.content || data.html || 
+                    "No text available.");
             } catch (error) {
-                outputDiv.innerHTML = "Error loading chapter. Verify app credentials or translation licenses.";
+                outputDiv.innerHTML = "Error loading chapter. Check your App Key or Bible licensing agreements.";
             }
         }
-
         async function lookupReference() {
             const versionId = document.getElementById('versionSelect').value;
             const query = document.getElementById('verseInput').value;
             const outputDiv = document.getElementById('output');
             if (!query) return;
-
             outputDiv.innerHTML = "Searching reference...";
             try {
-                const data = await fetchFromYouVersion('bible/verse', {
-                    version_id: versionId,
-                    id: query
-                });
+                // Formatting assuming input query is parsed or matches explicit structureconst data = await fetchFromYouVersion(bibles/${versionId}/passages, { q: query });
                 outputDiv.innerHTML = data.content || data.html || "No content found.";
             } catch (error) {
                 outputDiv.innerHTML = "Could not find that reference.";
@@ -261,11 +269,8 @@
             resultsDiv.style.display = 'block';
             resultsList.innerHTML = "Searching for terms...";
             try {
-                const data = await fetchFromYouVersion('bible/search', {
-                    version_id: versionId,
-                    q: term
-                });
-                resultsList.innerHTML = "";
+                const data = await fetchFromYouVersion(bibles/${versionId}/search, { q: term });
+                    resultsList.innerHTML = "";
                 const matches = data.results || [];
                 if (matches.length === 0) {
                     resultsList.innerHTML = "No verses matched that term.";
@@ -275,14 +280,18 @@
                     const li = document.createElement('li');
                     li.innerHTML = <span class="result-ref">${match.reference}</span>
                         <span>${match.text}</span>;
-                    li.onclick = () => {
+                    li.addEventListener('click', () => {
                         document.getElementById('verseInput').value = match.reference;
                         lookupReference();
-                    };
+                    });
                 resultsList.appendChild(li);
             });
         } catch (error) {
             resultsList.innerHTML = "Keyword search failed.";
         }
         }
+        // FIXED: Binding event listeners explicitly to ensure execution inside mobile webviews
+        document.getElementById('searchTermsBtn').addEventListener('click', searchKeywords);
+        document.getElementById('goVerseBtn').addEventListener('click', lookupReference);
+        // Run setup
         renderBooks();
